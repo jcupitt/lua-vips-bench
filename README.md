@@ -42,7 +42,10 @@ magick.lua	496908
 
 ### Preparation
 
-See the lua-vips project for install notes. 
+For `lua-vips` it's:
+
+	sudo apt-get install libvips42
+	luarocks install lua-vips
 
 For `magick`, you need: 
 
