@@ -1,0 +1,120 @@
+#!/bin/bash
+
+# how large an image do you want to process? 
+# sample2.v is 290x442 pixels ... replicate this many times horizontally and 
+# vertically to get a highres image for the benchmark
+tile=10
+
+# make a dir for our temp files
+tmp=tmp
+rm -rf $tmp
+mkdir $tmp
+
+# sample image is here
+sample=images/sample2.v
+
+echo building test image ...
+echo "tile=$tile"
+vips replicate $sample $tmp/t1.v 18 12
+vips crop $tmp/t1.v $tmp/t2.v 0 0 5000 5000
+if [ $? != 0 ]; then
+  echo "build of test image failed -- out of disc space?"
+  exit 1
+fi
+echo -n "test image is" $(vipsheader -f width $tmp/t2.v)
+echo " by" $(vipsheader -f height $tmp/t2.v) "pixels"
+
+echo make jpeg derivatives ...
+vips copy $tmp/t2.v $tmp/t.jpg
+
+# we want to use the time program, not the one built into the shell
+time=$(which time)
+if [ $? != 0 ]; then
+  echo "unable to locate 'time' program"
+  exit 1
+fi
+
+# try to find the real time a command took to run
+real_time() {
+	# capture command output to y, time output to x
+	(time -p $* &> tmp/y) &> tmp/x
+
+	# get just the "real 0.2" line
+	real=($(cat tmp/x | grep real))
+
+	# just the the number
+	return_real_time=${real[1]}
+}
+
+# run a command several times, return the fastest real time
+
+# sleep for two secs between runs to let the system settle -- after a run
+# there's a short period of disc chatter we want to avoid
+
+# you should check that services like tracker are not running
+
+get_time() {
+	cmd=$*
+
+	times=()
+	for i in {1..5}; do
+		sleep 2
+		real_time $cmd
+		times+=($return_real_time)
+	done
+
+	IFS=$'\n' times=($(sort -g <<<"${times[*]}"))
+	unset IFS
+	cmd_time=$times
+}
+
+# find peak RSS
+function maxmem() {
+  prg=$*
+
+  m=$($time -f %M $prg 2>&1 >/dev/null)
+
+  echo -n -e "$(basename $1)\t"
+  echo $m
+}
+
+# run for jpg 
+function benchmark() {
+  prg=$1
+
+  get_time $prg $tmp/t.jpg $tmp/t2.jpg
+  echo -e "$(basename $prg)\t$cmd_time\t"
+}
+
+# tests we run
+programs="\
+  ./magick.lua
+  ./vips.lua
+"
+
+rm -f $tmp/log
+
+for prg in $programs; do
+  echo -n timing $prg ...
+  benchmark $prg >> $tmp/log
+  echo " done"
+done
+
+rm -f $tmp/memlog
+for prg in $programs; do
+  echo -n measuring memuse for $prg ...
+  maxmem $prg $tmp/t.jpg $tmp/t2.jpg >> $tmp/memlog
+  echo " done"
+done
+
+echo 
+echo real time in seconds, fastest of three runs
+echo -e "benchmark\tjpeg"
+sort -g -k 2 $tmp/log 
+
+echo 
+echo peak memory use in KB
+echo -e "benchmark\tpeak RSS"
+sort -g -k 2 $tmp/memlog 
+
+rm -rf $tmp
