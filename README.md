@@ -1,6 +1,8 @@
 # lua-vips-bench
 
-This benchmarks the `lua-vips` image processing module against `magick`.
+This benchmarks the [`lua-vips`](https://github.com/jcupitt/lua-vips)
+image processing module against
+[`magick`](http://luarocks.org/modules/leafo/magick).
 
 The test is a very simple one: 
 
@@ -39,6 +41,9 @@ benchmark	peak RSS
 vips.lua	49816
 magick.lua	496908
 ```
+
+So on this test and on this laptop, lua-vips is 7.5x faster and needs 10x less
+memory. 
 
 ### Preparation
 
